@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>風控守衛</title>
+
+<!-- PWA / iOS -->
+<link rel="manifest" href="manifest.json">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="風控守衛">
+<meta name="theme-color" content="#000000">
+
+<style>
+body {
+  margin:0;
+  background:#000;
+  color:#fff;
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI";
+}
+
+.container {
+  max-width:420px;
+  margin:40px auto;
+  padding:16px;
+}
+
+.card {
+  border:1px solid #fff;
+  border-radius:22px;
+  padding:16px;
+  margin-bottom:20px;
+}
+
+.compact input[type=number],
+.compact input[type=range] {
+  width:90%;
+  display:block;
+  margin:6px auto;
+}
+
+h1 { text-align:center; margin-bottom:30px; }
+h2 { margin-top:0; font-size:18px; }
+
+label {
+  font-size:14px;
+  margin-top:10px;
+  display:block;
+  text-align:center;
+}
+
+input {
+  background:#000;
+  color:#fff;
+  border:1px solid #fff;
+  border-radius:12px;
+  padding:8px;
+}
+
+.range-lock {
+  border:2px solid red !important;
+}
+
+.result, .warning {
+  margin-top:8px;
+  font-size:14px;
+}
+
+.warning {
+  color:red;
+  white-space:pre-line;
+}
+
+.watermark {
+  position:fixed;
+  top:50%;
+  left:50%;
+  transform:translate(-50%,-50%);
+  font-size:60px;
+  opacity:0.025;
+  pointer-events:none;
+}
+
+.dsg {
+  position:fixed;
+  bottom:10px;
+  left:10px;
+  font-size:24px;
+  opacity:0.7;
+}
+</style>
+</head>
+
+<body>
+
+<div class="watermark">DSG WORLD</div>
+<div class="dsg">DSG</div>
+
+<div class="container">
+<h1>風控守衛</h1>
+
+<div class="card compact">
+<h2>帳戶設定</h2>
+
+<label>總資金</label>
+<input type="number" id="capital" value="100000">
+
+<label>單筆風險 %（硬限制）</label>
+<input type="number" id="riskPercent" value="0.5">
+</div>
+
+<div class="card compact">
+<h2>交易輸入</h2>
+
+<label>進場價</label>
+<input type="number" id="entry" value="4600">
+
+<label>停損價</label>
+<input type="number" id="stop" value="4595">
+
+<label>手數（不可超過風控）</label>
+<input type="range" id="lot" min="0" max="10" step="0.01" value="1">
+<div id="lotText" style="text-align:center;">1 手</div>
+</div>
+
+<div class="card">
+<h2>計算結果</h2>
+<div class="result" id="maxLot"></div>
+<div class="result" id="riskMoney"></div>
+<div class="result" id="riskPct"></div>
+</div>
+
+<div class="card">
+<h2>風控狀態</h2>
+<div class="warning" id="warning"></div>
+</div>
+
+</div>
+
+<script>
+const capitalEl = document.getElementById("capital");
+const riskPercentEl = document.getElementById("riskPercent");
+const entryEl = document.getElementById("entry");
+const stopEl = document.getElementById("stop");
+const lotEl = document.getElementById("lot");
+
+[
+  capitalEl,
+  riskPercentEl,
+  entryEl,
+  stopEl,
+  lotEl
+].forEach(el => el.addEventListener("input", calculate));
+
+function calculate() {
+  const capital = Number(capitalEl.value);
+  const riskLimit = Number(riskPercentEl.value);
+  const entry = Number(entryEl.value);
+  const stop = Number(stopEl.value);
+  let lot = Number(lotEl.value);
+
+  if (!capital || !entry || !stop || entry === stop) {
+    document.getElementById("warning").innerText = "⚠ 進場與停損不可為 0 或相同";
+    return;
+  }
+
+  const diff = Math.abs(entry - stop);
+  const maxLot = (capital * (riskLimit / 100)) / (diff * 100);
+
+  /* 手數硬鎖 */
+  if (lot > maxLot) {
+    lot = maxLot;
+    lotEl.value = maxLot.toFixed(2);
+    lotEl.classList.add("range-lock");
+  } else {
+    lotEl.classList.remove("range-lock");
+  }
+
+  const riskMoney = diff * lot * 100;
+  const riskPct = (riskMoney / capital) * 100;
+
+  document.getElementById("lotText").innerText = lot.toFixed(2) + " 手";
+  document.getElementById("maxLot").innerText =
+    "最大允許手數：" + maxLot.toFixed(2);
+  document.getElementById("riskMoney").innerText =
+    "實際風險金額：" + riskMoney.toFixed(2);
+  document.getElementById("riskPct").innerText =
+    "實際風險 %：" + riskPct.toFixed(2) + "%";
+
+  let warn = "";
+  if (riskPct >= riskLimit)
+    warn += "🛑 已達單筆風控上限\n";
+  if (riskMoney > capital * 0.05)
+    warn += "🚨 單筆已超過 FTMO 每日 5%\n";
+  if (riskMoney > capital * 0.10)
+    warn += "🚨 單筆已超過 FTMO 總 10%\n";
+
+  document.getElementById("warning").innerText = warn || "✔ 風控允許，可執行";
+}
+
+calculate();
+</script>
+
+</body>
+</html>
+{
+  "name": "風控守衛",
+  "short_name": "風控守衛",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#000000",
+  "theme_color": "#000000"
+}
